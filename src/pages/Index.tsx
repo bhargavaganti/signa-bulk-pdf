@@ -2,16 +2,23 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, FolderOpen } from "lucide-react";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { Document, Page, pdfjs } from 'react-pdf';
+
+// Initialize PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 const Index = () => {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [progress, setProgress] = useState(0);
   const [signaturePosition, setSignaturePosition] = useState({ x: 0, y: 0 });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [numPages, setNumPages] = useState(null);
+  const [pdfScale, setPdfScale] = useState(1.0);
   const previewRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -24,6 +31,10 @@ const Index = () => {
         description: `${files.length} PDF files selected for signing`,
       });
     }
+  };
+
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: any }) => {
+    setNumPages(numPages);
   };
 
   const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -72,6 +83,7 @@ const Index = () => {
         files: Array.from(selectedFiles),
         signaturePosition,
         destinationPath,
+        page: currentPage
       });
 
       toast({
@@ -141,30 +153,59 @@ const Index = () => {
 
           <Card className="p-4">
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Signature Placement</h2>
+              <h2 className="text-lg font-semibold">PDF Preview & Signature Placement</h2>
               <div 
                 ref={previewRef}
                 onClick={handlePreviewClick}
-                className="min-h-[300px] border rounded-lg p-4 bg-gray-50 relative cursor-crosshair"
+                className="min-h-[500px] border rounded-lg p-4 bg-gray-50 relative cursor-crosshair overflow-auto"
               >
-                {signaturePosition.x > 0 && (
-                  <div 
-                    className="absolute w-32 h-12 border-2 border-dashed border-blue-500 bg-blue-50 opacity-50"
-                    style={{ 
-                      left: `${signaturePosition.x}%`, 
-                      top: `${signaturePosition.y}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}
+                {selectedFiles && selectedFiles.length > 0 ? (
+                  <Document
+                    file={selectedFiles[0]}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    className="mx-auto"
                   >
-                    <div className="text-xs text-center mt-3">Signature Area</div>
-                  </div>
-                )}
-                {!signaturePosition.x && (
+                    <Page 
+                      pageNumber={currentPage} 
+                      scale={pdfScale}
+                      className="relative"
+                    />
+                    {signaturePosition.x > 0 && (
+                      <div 
+                        className="absolute w-32 h-12 border-2 border-dashed border-blue-500 bg-blue-50 opacity-50"
+                        style={{ 
+                          left: `${signaturePosition.x}%`, 
+                          top: `${signaturePosition.y}%`,
+                          transform: 'translate(-50%, -50%)'
+                        }}
+                      >
+                        <div className="text-xs text-center mt-3">Signature Area</div>
+                      </div>
+                    )}
+                  </Document>
+                ) : (
                   <div className="h-full flex items-center justify-center text-gray-500">
-                    Click anywhere to place signature
+                    Select a PDF to preview and place signature
                   </div>
                 )}
               </div>
+              {numPages && (
+                <div className="flex justify-between items-center">
+                  <Button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage <= 1}
+                  >
+                    Previous Page
+                  </Button>
+                  <span>Page {currentPage} of {numPages}</span>
+                  <Button
+                    onClick={() => setCurrentPage(prev => Math.min(numPages, prev + 1))}
+                    disabled={currentPage >= numPages}
+                  >
+                    Next Page
+                  </Button>
+                </div>
+              )}
               {progress > 0 && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
