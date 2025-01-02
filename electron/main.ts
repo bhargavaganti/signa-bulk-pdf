@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 
 function createWindow() {
@@ -16,6 +16,14 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // Expose directory picker to renderer
+  mainWindow.webContents.executeJavaScript(`
+    window.electron = {
+      showDirectoryPicker: () => ipcMain.invoke('show-directory-picker'),
+      signPDFs: (data) => ipcMain.invoke('sign-pdfs', data),
+    };
+  `);
 }
 
 app.whenReady().then(() => {
@@ -30,9 +38,22 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// Handle directory picker
+ipcMain.handle('show-directory-picker', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory']
+  });
+  
+  if (!result.canceled) {
+    return result.filePaths[0];
+  }
+  return null;
+});
+
 // Handle PDF signing
-ipcMain.handle('sign-pdfs', async (event, files) => {
+ipcMain.handle('sign-pdfs', async (event, { files, signaturePosition, destinationPath }) => {
   // This is where we'll implement the actual PDF signing logic
   // using the DSC token and node-signpdf
+  // For now, we'll just return true
   return true;
 });

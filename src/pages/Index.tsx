@@ -2,14 +2,17 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Plus, Trash2, FolderOpen } from "lucide-react";
+import { Plus, Trash2, FolderOpen } from "lucide-react";
+import { SettingsDialog } from "@/components/SettingsDialog";
 
 const Index = () => {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [progress, setProgress] = useState(0);
+  const [signaturePosition, setSignaturePosition] = useState({ x: 0, y: 0 });
+  const previewRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -23,11 +26,35 @@ const Index = () => {
     }
   };
 
+  const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!previewRef.current) return;
+    
+    const rect = previewRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    setSignaturePosition({ x, y });
+    toast({
+      title: "Signature position set",
+      description: "Position will be replicated across all PDFs",
+    });
+  };
+
   const handleSignPDFs = async () => {
     if (!selectedFiles) {
       toast({
         title: "No files selected",
         description: "Please select PDF files to sign",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const destinationPath = localStorage.getItem("pdfDestinationPath");
+    if (!destinationPath) {
+      toast({
+        title: "No destination set",
+        description: "Please set a destination folder in settings",
         variant: "destructive",
       });
       return;
@@ -39,6 +66,13 @@ const Index = () => {
         setProgress(i);
         await new Promise(resolve => setTimeout(resolve, 500));
       }
+
+      // @ts-ignore (electron is available in window)
+      await window.electron.signPDFs({
+        files: Array.from(selectedFiles),
+        signaturePosition,
+        destinationPath,
+      });
 
       toast({
         title: "Success",
@@ -57,7 +91,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Toolbar */}
       <div className="bg-white border-b shadow-sm p-2">
         <div className="flex items-center gap-2 max-w-screen-xl mx-auto">
           <Button variant="outline" size="icon" onClick={() => document.getElementById('pdf-input')?.click()}>
@@ -70,16 +103,12 @@ const Index = () => {
             <Trash2 className="h-4 w-4" />
           </Button>
           <Separator orientation="vertical" className="h-6" />
-          <Button variant="outline" size="icon">
-            <Settings className="h-4 w-4" />
-          </Button>
+          <SettingsDialog />
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="container mx-auto p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* File List */}
           <Card className="p-4">
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">PDF Files</h2>
@@ -110,28 +139,48 @@ const Index = () => {
             </div>
           </Card>
 
-          {/* Signing Options */}
           <Card className="p-4">
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Signing Options</h2>
-              <div className="space-y-4">
-                {progress > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Signing Progress</span>
-                      <span>{progress}%</span>
-                    </div>
-                    <Progress value={progress} className="w-full" />
+              <h2 className="text-lg font-semibold">Signature Placement</h2>
+              <div 
+                ref={previewRef}
+                onClick={handlePreviewClick}
+                className="min-h-[300px] border rounded-lg p-4 bg-gray-50 relative cursor-crosshair"
+              >
+                {signaturePosition.x > 0 && (
+                  <div 
+                    className="absolute w-32 h-12 border-2 border-dashed border-blue-500 bg-blue-50 opacity-50"
+                    style={{ 
+                      left: `${signaturePosition.x}%`, 
+                      top: `${signaturePosition.y}%`,
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  >
+                    <div className="text-xs text-center mt-3">Signature Area</div>
                   </div>
                 )}
-                <Button
-                  onClick={handleSignPDFs}
-                  className="w-full"
-                  disabled={!selectedFiles || progress > 0}
-                >
-                  Sign PDFs
-                </Button>
+                {!signaturePosition.x && (
+                  <div className="h-full flex items-center justify-center text-gray-500">
+                    Click anywhere to place signature
+                  </div>
+                )}
               </div>
+              {progress > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Signing Progress</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <Progress value={progress} className="w-full" />
+                </div>
+              )}
+              <Button
+                onClick={handleSignPDFs}
+                className="w-full"
+                disabled={!selectedFiles || progress > 0 || !signaturePosition.x}
+              >
+                Sign PDFs
+              </Button>
             </div>
           </Card>
         </div>
