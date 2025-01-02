@@ -22,5 +22,10 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    rollupOptions: {
+      external: [
+        /pdf\.worker\.js$/
+      ]
+    }
   },
 }));
