@@ -9,8 +9,11 @@ import { Plus, Trash2, FolderOpen } from "lucide-react";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { Document, Page, pdfjs } from 'react-pdf';
 
-// Initialize PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Import the worker directly from node_modules
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
+
+// Set the worker source
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const Index = () => {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
